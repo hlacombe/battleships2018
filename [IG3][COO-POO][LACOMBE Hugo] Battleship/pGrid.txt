@@ -1,0 +1,165 @@
+﻿	/************************************************************************************************************************************/
+	This is a WIP code to implement the probability grid.
+	For more details check http://datagenetics.com/blog/december32011/index.html
+	LACOMBE Hugo - IG3 - TD2 - 2018
+	/************************************************************************************************************************************/
+	public Coordinates getOptimalCoordinates(Player enemy){
+		//
+		ArrayList<Coordinates> cantBePlacedHere;
+		ArrayList<Coordinates> toPrioritise;
+		ArrayList<Coordinates> upPriority = new ArrayList<Coordinates>();
+		
+		boolean hunt = this.getPriorityShoot().isEmpty(); //true=hunt mode
+
+		if(hunt){
+			cantBePlacedHere = this.getAlreadyShooted();
+		}
+		else{
+			cantBePlacedHere = this.getAlreadyShooted();
+			toPrioritise = this.getHits();
+			for(Ship s : enemy.getMyFleet()){
+				if(s.isSunk()){
+					toPrioritise.removeAll(s.getPosition());
+				}
+			}
+			for(Coordinates c : toPrioritise){
+				upPriority.addAll(c.getAllNeighbours());
+			}
+		}
+
+		//creation de la grille vide
+		//les miss sont retir�es
+		for(int i=0;i<10;i++){//create pgrid
+			for(int j=0;j<10;j++){
+				pGrid[i][j].setProba(0);
+				if(hunt && upPriority.contains(pGrid[i][j])) {
+					pGrid[i][j].setProba(25);
+				}
+				if(cantBePlacedHere.contains(pGrid[i][j])) {
+					pGrid[i][j].setHit(true);
+					pGrid[i][j].setProba(0);
+				}
+			}
+		}
+		System.gc();
+		for(Ship s : enemy.getMyFleet()) {//pour tout les bateaux de l'adversaire
+			//si le bateau est encore vivant
+			for(int direction= 0;direction<2;direction++){//on essaie de le placer verticalement&&horizontalement
+				for(int i=0;i<10;i++){//pour chaque row
+					for(int j=0;j<10;j++){//chaque col
+						if(!pGrid[i][j].isHit()) {
+							boolean correctPosition = this.checkPlacing(s,pGrid[i][j],feasibleCoordinatesChosen((pGrid[i][j]),s.getLen(),direction),pGrid);
+							if(correctPosition){//si cette postion est possible
+								ArrayList<Coordinates> toIncrement = calculatePosition(pGrid[i][j], feasibleCoordinatesChosen(pGrid[i][j],s.getLen(),direction) ,s.getLen(), pGrid );
+								for(Coordinates c : toIncrement) {//pour chaque position concern�""
+									if(!s.isSunk()){
+										c.setProba();
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		System.gc();
+		Coordinates opti = new Coordinates();
+		opti.setProba(-1);
+		for(int i=0;i<10;i++){
+			for(int j=0;j<10;j++){
+				System.out.print(pGrid[i][j].getProba()+" ");
+				if(!this.getAlreadyShooted().contains(pGrid[i][j])) {
+					if(pGrid[i][j].getProba() >= opti.getProba()){
+						opti.giveValues(pGrid[i][j].getRow(),pGrid[i][j].getCol());
+						opti.setProba(pGrid[i][j].getProba());
+					}
+				}
+			}
+			System.out.println("\n");
+		}
+		System.out.println(opti);
+		System.gc();
+		return opti;
+	}
+
+
+
+	private Coordinates feasibleCoordinatesChosen(Coordinates coordinates, int len,int direction) {
+		Coordinates returnCoordinates = new Coordinates();
+		if(direction ==1) {//horizontal
+			returnCoordinates.giveValues(coordinates.getRow(),coordinates.getCol()+(len-1));
+			return returnCoordinates;
+		}
+		else {//vertical
+			returnCoordinates.giveValues(coordinates.getRow()+(len-1),coordinates.getCol());
+			return returnCoordinates;
+		}
+
+	}
+
+	public boolean checkPlacing(Ship s, Coordinates start, Coordinates end, Coordinates[][] pgrid) {
+		ArrayList<Coordinates> allShipPositions = s.calculateAllShipPosition(start, end);
+		if(!start.correctCoordinates() || !end.correctCoordinates()) {
+			return false;
+		}
+		ArrayList<Coordinates> notPossible = this.getAlreadyShooted();
+		notPossible.removeAll(this.lastFewHits);
+		for(Coordinates[] tab : pgrid) {
+			for(Coordinates coord : tab) {
+				if(coord.isHit()){
+					notPossible.add(coord);
+				}
+			}
+		}	
+		for(Coordinates c: allShipPositions) {
+			if(notPossible.contains(c)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	public ArrayList<Coordinates> getHits(){
+		ArrayList<Coordinates> hits = new ArrayList<Coordinates>();
+		for(Coordinates c: this.getAlreadyShooted()) {
+			if(c.isHit()) {
+				hits.add(c);
+			}
+		}
+		return hits;
+	}
+
+	public ArrayList<Coordinates> calculatePosition(Coordinates start, Coordinates end, int len, Coordinates[][] pgrid){
+		ArrayList<Coordinates> allShipPositions = new ArrayList<Coordinates>();
+		if(start.getRow() == end.getRow()){//ship placed horizontally
+			for(int i=Math.min(start.getCol(),end.getCol());i <= Math.min(start.getCol(),end.getCol()) + len -1; i++){
+				allShipPositions.add(pgrid[start.getRow()][i]);
+			}
+		}
+		else{//ship placed vertically
+			for(int i=Math.min(start.getRow(),end.getRow());i <= Math.min(start.getRow(),end.getRow()) + len -1; i++){;
+			allShipPositions.add(pgrid[i][start.getCol()]);
+			}
+		}
+		return allShipPositions;
+	}
+
+	public ArrayList<Coordinates> calculateCoordinatesBetween(Coordinates start, Coordinates end, int len){
+		ArrayList<Coordinates> allShipPositions = new ArrayList<Coordinates>();
+		if(start.getRow() == end.getRow()){//ship placed horizontally
+			for(int i=Math.min(start.getCol(),end.getCol());i <= Math.min(start.getCol(),end.getCol()) + len -1; i++){
+				Coordinates newCoord = new Coordinates();
+				newCoord.giveValues(start.getRow(), i) ;
+				allShipPositions.add(newCoord);
+			}
+		}
+		else{//ship placed vertically
+			for(int i=Math.min(start.getRow(),end.getRow());i <= Math.min(start.getRow(),end.getRow()) + len -1; i++){
+				Coordinates newCoord = new Coordinates();
+				newCoord.giveValues(i, start.getCol()) ;
+				allShipPositions.add(newCoord);
+			}
+		}
+		return allShipPositions;
+	}
+	/************************************************************************************************************************************/
